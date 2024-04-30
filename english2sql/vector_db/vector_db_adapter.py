@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import json
+import os
 from pathlib import Path
 from typing import List
 
@@ -8,9 +9,11 @@ from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.core import StorageContext
 from llama_index.core.embeddings import BaseEmbedding
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from llama_index.embeddings.bedrock import BedrockEmbedding
 import chromadb
 
 from english2sql.metadata.model import DatabaseMetadata, QueryTableResult, QueryColumnResult, QueryMetadata
+from english2sql.config import LLMProvider, llm_provider_from_env
 
 
 class VectorDbAdapter(ABC):
@@ -176,7 +179,24 @@ class ChromaDbVectorDbAdapter(VectorDbAdapter):
         
 
 def create_vector_db_adapter_from_env() -> VectorDbAdapter:
-    embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-base-en-v1.5") # TODO - support for Bedrock embeddings
+    provider = llm_provider_from_env()
+    if provider == LLMProvider.HUGGING_FACE:
+        model_id = os.environ.get('EMBEDDING_MODEL_ID', 'BAAI/bge-base-en-v1.5')
+        embed_model = HuggingFaceEmbedding(model_name=model_id)
+    elif provider == LLMProvider.BEDROCK:
+        model_id = os.environ.get('EMBEDDING_MODEL_ID', 'amazon.titan-embed-text-v1')
+        # "amazon.titan-embed-text-v1",
+        # "amazon.titan-embed-g1-text-02",
+        # "cohere.embed-english-v3",
+        # "cohere.embed-multilingual-v3"
+        # "amazon.titan-embed-text-v1",
+        # "amazon.titan-embed-g1-text-02",
+        # "cohere.embed-english-v3",
+        # "cohere.embed-multilingual-v3"
+        embed_model = BedrockEmbedding(
+            model=model_id
+        )
+
     return ChromaDbVectorDbAdapter(
         path="chroma_db",  # TODO - from static variable
         embed_model=embed_model
