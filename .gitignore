@@ -1,0 +1,7 @@
+venv/
+jaffle-shop-main/
+jaffle_shop_duckdb-duckdb/
+chroma_db/
+chroma_db_old/
+.zip
+__pycache__/
