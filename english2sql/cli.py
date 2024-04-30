@@ -47,26 +47,29 @@ def ingest_sample_queries(sample_queries_path: str):
 @click.argument("query")
 def list_related_tables(query: str):
     """List related tables to query"""
+
     vector_db = create_vector_db_adapter_from_env()
     result = vector_db.find_related_tables(query)
     for r in result:
-        print(r.distance, ' ', r.table_name, ' ', r.columns)
+        print(r.table_name, ' ', r.columns)
 
 
 @cli.command()
 @click.argument("query")
 def list_related_columns(query: str):
     """List related columns to query"""
+
     vector_db = create_vector_db_adapter_from_env()
     result = vector_db.find_related_columns(query)
     for r in result:
-        print(r.distance, ' ', r.table_name, ' ', r.column_name, ' ', r.description)
+        print(r.table_name, ' ', r.column_name, ' ', r.description)
 
 
 @cli.command()
 @click.argument("query")
 def list_similar_queries(query: str):
     """List similar queries to query"""
+
     vector_db = create_vector_db_adapter_from_env()
     result = vector_db.find_similar_queries(query)
     for r in result:
@@ -79,6 +82,7 @@ def list_similar_queries(query: str):
 @click.argument("query")
 def generate_prompt(query: str):
     """Generate prompt for query"""
+
     click.echo("Retreiving related tables from Vector DB")
     vector_db = create_vector_db_adapter_from_env()
     related_tables = vector_db.find_related_tables(query)
@@ -96,6 +100,7 @@ def generate_prompt(query: str):
 @click.argument("query")
 def generate_sql_query(query: str):
     """Generate SQL from query"""
+
     click.echo("Retreiving related tables from Vector DB")
     vector_db = create_vector_db_adapter_from_env()
     related_tables = vector_db.find_related_tables(query)

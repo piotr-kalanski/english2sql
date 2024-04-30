@@ -1,6 +1,8 @@
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
+from pydantic import BaseModel
 
+# dbt metadata:
 
 @dataclass
 class ColumnMetadata:
@@ -23,27 +25,23 @@ class TableMetadata:
 class DatabaseMetadata:
     tables: List[TableMetadata]
 
+# models to store metadata in vector db:
 
-@dataclass
-class QueryTableResult:
+class TableVectorMetadata(BaseModel):
     schema_name: str
     table_name: str
     columns: str
-    distance: float
 
 
-@dataclass
-class QueryColumnResult:
+class ColumnVectorMetadata(BaseModel):
     schema_name: str
     table_name: str
     column_name: str
-    type: str
-    description: str
-    accepted_values: str
-    distance: float
+    type: Optional[str]
+    description: Optional[str]
+    accepted_values: Optional[str]
 
 
-@dataclass
-class QueryMetadata:
+class QueryVectorMetadata(BaseModel):
     sql: str
     description: str

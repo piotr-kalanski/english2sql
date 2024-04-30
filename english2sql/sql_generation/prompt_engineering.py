@@ -1,6 +1,6 @@
 from typing import List
 
-from english2sql.metadata.model import QueryTableResult, QueryColumnResult, QueryMetadata
+from english2sql.metadata.model import TableVectorMetadata, ColumnVectorMetadata, QueryVectorMetadata
 
 # prompt based on https://github.com/pinterest/querybook/blob/master/querybook/server/lib/ai_assistant/prompts/text_to_sql_prompt.py
 _GENERATE_QUERY_PROMPT = """
@@ -36,9 +36,9 @@ Please help to generate a {dialect} query to answer the question. Your response 
 
 def generate_query_prompt(
     user_prompt: str,
-    related_tables: List[QueryTableResult],
-    related_columns: List[QueryColumnResult],
-    similar_queries: List[QueryMetadata],
+    related_tables: List[TableVectorMetadata],
+    related_columns: List[ColumnVectorMetadata],
+    similar_queries: List[QueryVectorMetadata],
 ) -> str:
     return _GENERATE_QUERY_PROMPT.format(
         dialect="Redshift",

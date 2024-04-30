@@ -32,11 +32,7 @@ def find_related_tables(prompt: str, tables_tab):
         if related_tables:
             related_tables_df = pd.DataFrame(
                 data=[
-                    {
-                        'table': r.schema_name + '.' + r.table_name,
-                        'columns': r.columns,
-                        'distance': r.distance,
-                    }
+                    r.dict()
                     for r in related_tables
                 ],
             )            
@@ -53,12 +49,7 @@ def find_related_columns(prompt: str, columns_tab):
         if related_columns:
             related_columns_df = pd.DataFrame(
                 data=[
-                    {
-                        'table': c.schema_name + '.' + c.table_name,
-                        'column': c.column_name,
-                        'description': c.description,
-                        'distance': c.distance,
-                    }
+                    c.dict()
                     for c in related_columns
                 ],
             )
