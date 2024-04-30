@@ -3,7 +3,12 @@ import pandas as pd
 import time
 
 from english2sql.vector_db.vector_db_adapter import create_vector_db_adapter_from_env
-from english2sql.sql_generation.generate import generate_sql_query
+from english2sql.sql_generation.prompt_engineering import generate_query_prompt
+from english2sql.sql_generation.llm_adapter import create_sql_generation_adapter_from_env
+
+
+vector_db = create_vector_db_adapter_from_env()
+llm = create_sql_generation_adapter_from_env()
 
 
 def no_results():
@@ -17,9 +22,7 @@ if prompt:
     with st.chat_message("user"):
         st.write(prompt)
 
-    #system_message = st.chat_message("system")
     with st.spinner('Fetching table metadata'):
-        vector_db = create_vector_db_adapter_from_env()
         related_tables = vector_db.find_related_tables(prompt)
         related_tables_df = pd.DataFrame(
             data=[
@@ -38,7 +41,6 @@ if prompt:
         no_results()
 
     with st.spinner('Fetching related columns metadata'):
-        vector_db = create_vector_db_adapter_from_env()
         related_columns = vector_db.find_related_columns(prompt)
         related_columns_df = pd.DataFrame(
             data=[
@@ -58,19 +60,8 @@ if prompt:
         no_results()
 
     with st.spinner('Fetching similar queries'):
-        vector_db = create_vector_db_adapter_from_env()
         similar_queries = vector_db.find_similar_queries(prompt)
-        # similar_queries_df = pd.DataFrame(
-        #     data=[
-        #         {
-        #             "sql": q.sql,
-        #             "decription": q.description,
-        #         }
-        #         for q in similar_queries
-        #     ],
-        # )
     st.subheader('Similar queries')
-    # st.write(similar_queries_df)
     queries = '\n'.join([
         f'-- {q.description}\n{q.sql}\n'
         for q in similar_queries
@@ -80,10 +71,14 @@ if prompt:
     else:
         no_results()
 
+    st.subheader('Prompt to LLM')
+    with st.spinner('Generating prompt to LLM'):
+        llm_prompt = generate_query_prompt(prompt, related_tables, related_columns, similar_queries)
+    st.text(llm_prompt)
+
     st.subheader('Generated SQL')
     with st.spinner('Generating SQL query'):
-        sql = generate_sql_query(prompt, related_tables, related_columns, similar_queries, stream=False)
-        #st.write_stream(sql)
+        sql = llm.generate_sql_query(llm_prompt)
     st.code(sql, language='sql', line_numbers=True)
 
     try:

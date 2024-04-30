@@ -4,8 +4,8 @@ import click
 
 from english2sql.metadata.dbt_docs import load_dbt_metadata
 from english2sql.metadata.queries import load_sample_queries
-from english2sql.sql_generation import generate
 from english2sql.sql_generation.prompt_engineering import generate_query_prompt
+from english2sql.sql_generation.llm_adapter import create_sql_generation_adapter_from_env
 from english2sql.vector_db.vector_db_adapter import create_vector_db_adapter_from_env
 
 
@@ -103,8 +103,11 @@ def generate_sql_query(query: str):
     related_columns = vector_db.find_related_columns(query)
     click.echo("Retreiving similar queries from Vector DB")
     similar_queries = vector_db.find_similar_queries(query)
+    click.echo("Generating prompt to LLM")
+    llm_prompt = generate_query_prompt(query, related_tables, related_columns, similar_queries)
     click.echo("Generated SQL query:")
-    sql = generate.generate_sql_query(query, related_tables, related_columns, similar_queries)
+    llm = create_sql_generation_adapter_from_env()
+    sql = llm.generate_sql_query(llm_prompt)
     click.echo(sql)
 
 
