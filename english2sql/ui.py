@@ -7,8 +7,18 @@ from english2sql.sql_generation.prompt_engineering import generate_query_prompt
 from english2sql.sql_generation.llm_adapter import create_sql_generation_adapter_from_env
 
 
-vector_db = create_vector_db_adapter_from_env()
-llm = create_sql_generation_adapter_from_env()
+@st.cache_resource
+def get_vector_db_adapter():
+    return create_vector_db_adapter_from_env()
+
+
+@st.cache_resource
+def get_sql_generation_adapter():
+    return create_sql_generation_adapter_from_env()
+
+
+vector_db = get_vector_db_adapter()
+llm = get_sql_generation_adapter()
 
 
 def no_results():
@@ -21,6 +31,8 @@ if prompt:
     st.subheader('Your prompt')
     with st.chat_message("user"):
         st.write(prompt)
+    
+    st.divider()
 
     tables_tab, columns_tab, queries_tab, prompt_tab, sql_tab = st.tabs([
         "Related tables",
@@ -88,6 +100,8 @@ if prompt:
         sql = llm.generate_sql_query(llm_prompt)
     with sql_tab:
         st.code(sql, language='sql', line_numbers=True)
+
+    st.divider()
 
     try:
         with st.spinner('Fetching data from database'):
