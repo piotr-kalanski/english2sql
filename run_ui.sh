@@ -1,0 +1,1 @@
+streamlit run english2sql/ui/app.py
