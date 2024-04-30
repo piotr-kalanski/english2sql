@@ -103,7 +103,7 @@ def query_database(sql: str):
 
 st.title('PoC - english to SQL')
 
-prompt = st.chat_input('Insert your query here')
+prompt = st.chat_input('Insert your prompt here')
 if prompt:
     try:
         st.subheader('Your prompt')
@@ -113,10 +113,10 @@ if prompt:
         st.divider()
 
         tables_tab, columns_tab, queries_tab, prompt_tab, sql_tab = st.tabs([
-            'Related tables',
-            'Related columns',
-            'Similar queries',
-            'Generated prompt',
+            'Most similar tables',
+            'Most related columns',
+            'Most similar queries',
+            'Generated prompt to LLM',
             'Generated SQL'
         ])
         related_tables = find_related_tables(prompt, tables_tab)

@@ -73,7 +73,7 @@ def list_similar_queries(query: str):
     vector_db = create_vector_db_adapter_from_env()
     result = vector_db.find_similar_queries(query)
     for r in result:
-        click.echo(r.description)
+        click.echo('-- ' + r.description)
         click.echo(r.sql)
         click.echo('')
 
@@ -81,7 +81,7 @@ def list_similar_queries(query: str):
 @cli.command()
 @click.argument("query")
 def generate_prompt(query: str):
-    """Generate prompt for query"""
+    """Generate prompt to LLM from query"""
 
     click.echo("Retreiving related tables from Vector DB")
     vector_db = create_vector_db_adapter_from_env()

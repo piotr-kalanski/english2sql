@@ -83,7 +83,9 @@ class ChromaDbVectorDbAdapter(VectorDbAdapter):
         self._save_items(
             db.tables,
             self._tables_vector_store,
-            lambda t: t.table + ' ' + t.description, # TODO include columns and columns descriptions
+            lambda t: (
+                t.table + ' ' + t.description + ' ' + ','.join([c.name for c in t.columns])
+            ),
             lambda t: TableVectorMetadata(
                 schema_name=t.schema,
                 table_name=t.table,
@@ -115,7 +117,10 @@ class ChromaDbVectorDbAdapter(VectorDbAdapter):
             queries,
             self._queries_vector_store,
             lambda q: q.description,
-            lambda q: QueryVectorMetadata(**q).dict(),
+            lambda q: QueryVectorMetadata(
+                sql=q.sql,
+                description=q.description,
+            ).dict(),
         )
 
     def _save_items(
@@ -141,7 +146,7 @@ class ChromaDbVectorDbAdapter(VectorDbAdapter):
         return self._find_similar_items(
             query,
             self._table_retriever,
-            0.2,
+            0.4, # TODO - try different values
             TableVectorMetadata,
         )
 
@@ -149,7 +154,7 @@ class ChromaDbVectorDbAdapter(VectorDbAdapter):
         return self._find_similar_items(
             query,
             self._columns_retriever,
-            0.2,
+            0.4, # TODO - try different values
             ColumnVectorMetadata,
         )
 
@@ -157,7 +162,7 @@ class ChromaDbVectorDbAdapter(VectorDbAdapter):
         return self._find_similar_items(
             query,
             self._queries_retriever,
-            0.2,
+            0.4, # TODO - try different values
             QueryVectorMetadata,
         )
 
