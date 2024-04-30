@@ -22,6 +22,14 @@ if prompt:
     with st.chat_message("user"):
         st.write(prompt)
 
+    tables_tab, columns_tab, queries_tab, prompt_tab, sql_tab = st.tabs([
+        "Related tables",
+        "Related columns",
+        "Similar queries",
+        "Generated prompt",
+        "Generated SQL"
+    ])
+
     with st.spinner('Fetching table metadata'):
         related_tables = vector_db.find_related_tables(prompt)
         related_tables_df = pd.DataFrame(
@@ -34,11 +42,11 @@ if prompt:
                 for r in related_tables
             ],
         )
-    st.subheader('Related tables')
-    if related_tables:
-        st.write(related_tables_df)
-    else:
-        no_results()
+    with tables_tab:
+        if related_tables:
+            st.write(related_tables_df)
+        else:
+            no_results()
 
     with st.spinner('Fetching related columns metadata'):
         related_columns = vector_db.find_related_columns(prompt)
@@ -53,33 +61,33 @@ if prompt:
                 for c in related_columns
             ],
         )
-    st.subheader('Related columns')
-    if related_columns:
-        st.write(related_columns_df)
-    else:
-        no_results()
+    with columns_tab:
+        if related_columns:
+            st.write(related_columns_df)
+        else:
+            no_results()
 
     with st.spinner('Fetching similar queries'):
         similar_queries = vector_db.find_similar_queries(prompt)
-    st.subheader('Similar queries')
     queries = '\n'.join([
         f'-- {q.description}\n{q.sql}\n'
         for q in similar_queries
     ])
-    if similar_queries:
-        st.code(queries, language='sql', line_numbers=True)
-    else:
-        no_results()
+    with queries_tab:
+        if similar_queries:
+            st.code(queries, language='sql', line_numbers=True)
+        else:
+            no_results()
 
-    st.subheader('Prompt to LLM')
     with st.spinner('Generating prompt to LLM'):
         llm_prompt = generate_query_prompt(prompt, related_tables, related_columns, similar_queries)
-    st.text(llm_prompt)
+    with prompt_tab:
+        st.text(llm_prompt)
 
-    st.subheader('Generated SQL')
     with st.spinner('Generating SQL query'):
         sql = llm.generate_sql_query(llm_prompt)
-    st.code(sql, language='sql', line_numbers=True)
+    with sql_tab:
+        st.code(sql, language='sql', line_numbers=True)
 
     try:
         with st.spinner('Fetching data from database'):
