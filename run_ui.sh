@@ -1,1 +1,1 @@
-streamlit run english2sql/ui/app.py
+streamlit run english2sql/ui.py
