@@ -1,6 +1,8 @@
+import json
 from pathlib import Path
 
 import click
+from llama_index.embeddings.bedrock import BedrockEmbedding
 
 from english2sql.metadata.dbt_docs import load_dbt_metadata
 from english2sql.metadata.queries import load_sample_queries
@@ -114,6 +116,18 @@ def generate_sql_query(query: str):
     llm = create_sql_generation_adapter_from_env()
     sql = llm.generate_sql_query(llm_prompt)
     click.echo(sql)
+
+
+@cli.command()
+def bedrock_embedding_models():
+    supported_models = BedrockEmbedding.list_supported_models()
+    print(json.dumps(supported_models, indent=2))
+
+
+@cli.command()
+def bedrock_llms():
+    from llama_index.llms.bedrock.utils import BEDROCK_FOUNDATION_LLMS
+    print(json.dumps(BEDROCK_FOUNDATION_LLMS, indent=2))
 
 
 if __name__ == '__main__':
