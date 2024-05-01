@@ -15,6 +15,7 @@ import chromadb
 
 from english2sql.metadata.model import DatabaseMetadata, TableVectorMetadata, ColumnVectorMetadata, QueryVectorMetadata
 from english2sql.config import LLMProvider, llm_provider_from_env
+from english2sql.utils import get_cleaned_model_id
 
 
 class VectorDbAdapter(ABC):
@@ -181,6 +182,11 @@ class ChromaDbVectorDbAdapter(VectorDbAdapter):
         ]        
         
 
+def get_path_for_model_id(model_id: str) -> Path:
+    cleaned_model_id = get_cleaned_model_id(model_id)
+    return Path('.') / 'chroma_db' / cleaned_model_id  # TODO - main dir from static variable
+
+
 def create_vector_db_adapter_from_env() -> VectorDbAdapter:
     provider = llm_provider_from_env()
     if provider == LLMProvider.HUGGING_FACE:
@@ -201,6 +207,6 @@ def create_vector_db_adapter_from_env() -> VectorDbAdapter:
         )
 
     return ChromaDbVectorDbAdapter(
-        path="chroma_db",  # TODO - from static variable
+        path=str(get_path_for_model_id(model_id)),
         embed_model=embed_model
     )

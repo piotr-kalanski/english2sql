@@ -3,12 +3,14 @@ from pathlib import Path
 
 import click
 from llama_index.embeddings.bedrock import BedrockEmbedding
+from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 
+from english2sql.config import LLMProvider
 from english2sql.metadata.dbt_docs import load_dbt_metadata
 from english2sql.metadata.queries import load_sample_queries
 from english2sql.sql_generation.prompt_engineering import generate_query_prompt
 from english2sql.sql_generation.llm_adapter import create_sql_generation_adapter_from_env
-from english2sql.vector_db.vector_db_adapter import create_vector_db_adapter_from_env
+from english2sql.vector_db.vector_db_adapter import create_vector_db_adapter_from_env, ChromaDbVectorDbAdapter, get_path_for_model_id
 
 
 @click.group()
@@ -120,14 +122,70 @@ def generate_sql_query(query: str):
 
 @cli.command()
 def bedrock_embedding_models():
+    """Print all supported Bedrock models for embeddings"""
+
     supported_models = BedrockEmbedding.list_supported_models()
     print(json.dumps(supported_models, indent=2))
 
 
 @cli.command()
 def bedrock_llms():
+    """Print all supported Bedrock LLM models"""
+
     from llama_index.llms.bedrock.utils import BEDROCK_FOUNDATION_LLMS
     print(json.dumps(BEDROCK_FOUNDATION_LLMS, indent=2))
+
+
+@cli.command()
+@click.argument("dbt_metadata_dir")
+@click.argument("sample_queries_path")
+@click.option('--hf-models') # BAAI/bge-small-en-v1.5,BAAI/bge-base-en-v1.5,BAAI/bge-large-en-v1.5
+@click.option('--bedrock-models')
+def ingest_metadata_with_multiple_embedding_models(
+    dbt_metadata_dir: str,
+    sample_queries_path: str,
+    hf_models: str, 
+    bedrock_models: str
+):
+    """Ingest metadata with multiple embedding models for comparison"""
+
+    click.echo("Loading dbt metadata")
+    db = load_dbt_metadata(Path(dbt_metadata_dir))
+
+    click.echo("Loading sample queries")
+    sample_queries = load_sample_queries(Path(sample_queries_path))
+
+    models = {
+        LLMProvider.HUGGING_FACE.value: hf_models.split(',') if hf_models else [],
+        LLMProvider.BEDROCK.value: bedrock_models.split(',') if bedrock_models else [],
+    }
+
+    click.echo(f"All models: {models}")
+
+    for provider in models:
+        for model_id in models[provider]:
+            if provider == LLMProvider.HUGGING_FACE.value:
+                embed_model = HuggingFaceEmbedding(model_name=model_id)
+            elif provider == LLMProvider.BEDROCK.value:
+                embed_model = BedrockEmbedding(model=model_id)
+
+            vector_db_path = get_path_for_model_id(model_id)
+            click.echo(f"[{model_id}] Vector db path: {vector_db_path}")
+            vector_db_path.mkdir(parents=True, exist_ok=True)
+
+            vector_db = ChromaDbVectorDbAdapter(
+                path=str(vector_db_path),
+                embed_model=embed_model
+            )
+
+            click.echo(f"[{model_id}] Ingesting table metadata")
+            vector_db.save_tables_metadata(db)
+
+            click.echo(f"[{model_id}] Ingesting columns metadata")
+            vector_db.save_columns_metadata(db)
+
+            click.echo(f"[{model_id}] Ingesting sample queries")
+            vector_db.save_sample_queries(sample_queries)
 
 
 if __name__ == '__main__':
