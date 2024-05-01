@@ -1,9 +1,11 @@
 import json
 from pathlib import Path
+from typing import List, Tuple
 
 import click
 from llama_index.embeddings.bedrock import BedrockEmbedding
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+import pandas as pd
 
 from english2sql.config import LLMProvider
 from english2sql.metadata.dbt_docs import load_dbt_metadata
@@ -136,6 +138,38 @@ def bedrock_llms():
     print(json.dumps(BEDROCK_FOUNDATION_LLMS, indent=2))
 
 
+def _get_vector_db_for_each_model(
+    hf_models: str, 
+    bedrock_models: str
+) -> List[Tuple[ChromaDbVectorDbAdapter, str]]:
+    models = {
+        LLMProvider.HUGGING_FACE.value: hf_models.split(',') if hf_models else [],
+        LLMProvider.BEDROCK.value: bedrock_models.split(',') if bedrock_models else [],
+    }
+    click.echo(f"All models: {models}")
+
+    adapters = []
+    model_ids = []
+    for provider in models:
+        for model_id in models[provider]:
+            if provider == LLMProvider.HUGGING_FACE.value:
+                embed_model = HuggingFaceEmbedding(model_name=model_id)
+            elif provider == LLMProvider.BEDROCK.value:
+                embed_model = BedrockEmbedding(model=model_id)
+
+            vector_db_path = get_path_for_model_id(model_id)
+            click.echo(f"[{model_id}] Vector db path: {vector_db_path}")
+            vector_db_path.mkdir(parents=True, exist_ok=True)
+
+            adapters.append(ChromaDbVectorDbAdapter(
+                path=str(vector_db_path),
+                embed_model=embed_model
+            ))
+            model_ids.append(model_id)
+
+    return zip(adapters, model_ids)
+
+
 @cli.command()
 @click.argument("dbt_metadata_dir")
 @click.argument("sample_queries_path")
@@ -155,37 +189,56 @@ def ingest_metadata_with_multiple_embedding_models(
     click.echo("Loading sample queries")
     sample_queries = load_sample_queries(Path(sample_queries_path))
 
-    models = {
-        LLMProvider.HUGGING_FACE.value: hf_models.split(',') if hf_models else [],
-        LLMProvider.BEDROCK.value: bedrock_models.split(',') if bedrock_models else [],
-    }
+    for vector_db, model_id in _get_vector_db_for_each_model(hf_models, bedrock_models):
+        click.echo(f"[{model_id}] Ingesting table metadata")
+        vector_db.save_tables_metadata(db)
 
-    click.echo(f"All models: {models}")
+        click.echo(f"[{model_id}] Ingesting columns metadata")
+        vector_db.save_columns_metadata(db)
 
-    for provider in models:
-        for model_id in models[provider]:
-            if provider == LLMProvider.HUGGING_FACE.value:
-                embed_model = HuggingFaceEmbedding(model_name=model_id)
-            elif provider == LLMProvider.BEDROCK.value:
-                embed_model = BedrockEmbedding(model=model_id)
+        click.echo(f"[{model_id}] Ingesting sample queries")
+        vector_db.save_sample_queries(sample_queries)
 
-            vector_db_path = get_path_for_model_id(model_id)
-            click.echo(f"[{model_id}] Vector db path: {vector_db_path}")
-            vector_db_path.mkdir(parents=True, exist_ok=True)
 
-            vector_db = ChromaDbVectorDbAdapter(
-                path=str(vector_db_path),
-                embed_model=embed_model
-            )
+@cli.command()
+@click.argument("sample_queries_path")
+@click.argument("output_path", default='output/related_items.json')
+@click.option('--hf-models')
+@click.option('--bedrock-models')
+def find_related_items_for_multiple_embedding_models(
+    sample_queries_path: str,
+    output_path: str,
+    hf_models: str, 
+    bedrock_models: str
+):
+    """Find related items for each query and embedding model for comparison"""
 
-            click.echo(f"[{model_id}] Ingesting table metadata")
-            vector_db.save_tables_metadata(db)
+    click.echo("Loading sample queries")
+    sample_queries = load_sample_queries(Path(sample_queries_path))
 
-            click.echo(f"[{model_id}] Ingesting columns metadata")
-            vector_db.save_columns_metadata(db)
-
-            click.echo(f"[{model_id}] Ingesting sample queries")
-            vector_db.save_sample_queries(sample_queries)
+    result = {}
+    for vector_db, model_id in _get_vector_db_for_each_model(hf_models, bedrock_models):
+        result[model_id] = {}
+        for query_obj in sample_queries:
+            query = query_obj.description
+            click.echo(f"[{model_id}] - {query}")
+            result[model_id][query] = {
+                'tables': [
+                    t.schema_name + '.' + t.table_name
+                    for t in vector_db.find_related_tables(query)
+                ],
+                'columns': [
+                    c.schema_name + '.' + c.table_name + '.' + c.column_name
+                    for c in vector_db.find_related_columns(query)
+                ],
+                'queries': [
+                    q.description
+                    for q in vector_db.find_similar_queries(query)
+                ],
+            }
+    
+    with open(output_path, 'w') as out:
+        out.write(json.dumps(result, indent=2))
 
 
 if __name__ == '__main__':

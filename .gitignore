@@ -6,3 +6,4 @@ chroma_db_old/
 .zip
 __pycache__/
 backup/
+output/
