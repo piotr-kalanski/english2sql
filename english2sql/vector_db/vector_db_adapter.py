@@ -187,26 +187,31 @@ def get_path_for_model_id(model_id: str) -> Path:
     return Path('.') / 'chroma_db' / cleaned_model_id  # TODO - main dir from static variable
 
 
-def create_vector_db_adapter_from_env() -> VectorDbAdapter:
-    provider = llm_provider_from_env()
+def create_vector_db_adapter(
+    provider: LLMProvider,
+    model_id: str,
+) -> VectorDbAdapter:
     if provider == LLMProvider.HUGGING_FACE:
-        model_id = os.environ.get('EMBEDDING_MODEL_ID', 'BAAI/bge-base-en-v1.5')
         embed_model = HuggingFaceEmbedding(model_name=model_id)
     elif provider == LLMProvider.BEDROCK:
-        model_id = os.environ.get('EMBEDDING_MODEL_ID', 'amazon.titan-embed-text-v1')
-        # "amazon.titan-embed-text-v1",
-        # "amazon.titan-embed-g1-text-02",
-        # "cohere.embed-english-v3",
-        # "cohere.embed-multilingual-v3"
-        # "amazon.titan-embed-text-v1",
-        # "amazon.titan-embed-g1-text-02",
-        # "cohere.embed-english-v3",
-        # "cohere.embed-multilingual-v3"
         embed_model = BedrockEmbedding(
             model=model_id
         )
 
+    vector_db_path = get_path_for_model_id(model_id)
+    vector_db_path.mkdir(parents=True, exist_ok=True)
+
     return ChromaDbVectorDbAdapter(
-        path=str(get_path_for_model_id(model_id)),
+        path=str(vector_db_path),
         embed_model=embed_model
     )
+
+
+def create_vector_db_adapter_from_env() -> VectorDbAdapter:
+    provider = llm_provider_from_env()
+    if provider == LLMProvider.HUGGING_FACE:
+        model_id = os.environ.get('EMBEDDING_MODEL_ID', 'BAAI/bge-base-en-v1.5')
+    elif provider == LLMProvider.BEDROCK:
+        model_id = os.environ.get('EMBEDDING_MODEL_ID', 'amazon.titan-embed-text-v1')
+
+    return create_vector_db_adapter(provider, model_id)

@@ -4,15 +4,14 @@ from typing import List, Tuple
 
 import click
 from llama_index.embeddings.bedrock import BedrockEmbedding
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 import pandas as pd
 
 from english2sql.config import LLMProvider
 from english2sql.metadata.dbt_docs import load_dbt_metadata
 from english2sql.metadata.queries import load_sample_queries
 from english2sql.sql_generation.prompt_engineering import generate_query_prompt
-from english2sql.sql_generation.llm_adapter import create_sql_generation_adapter_from_env
-from english2sql.vector_db.vector_db_adapter import create_vector_db_adapter_from_env, ChromaDbVectorDbAdapter, get_path_for_model_id
+from english2sql.sql_generation.llm_adapter import SqlQueryGenerationAdapter, create_sql_generation_adapter_from_env, create_sql_generation_adapter
+from english2sql.vector_db.vector_db_adapter import create_vector_db_adapter_from_env, ChromaDbVectorDbAdapter, create_vector_db_adapter
 
 
 @click.group()
@@ -142,32 +141,52 @@ def _get_vector_db_for_each_model(
     hf_models: str, 
     bedrock_models: str
 ) -> List[Tuple[ChromaDbVectorDbAdapter, str]]:
-    models = {
-        LLMProvider.HUGGING_FACE.value: hf_models.split(',') if hf_models else [],
-        LLMProvider.BEDROCK.value: bedrock_models.split(',') if bedrock_models else [],
-    }
-    click.echo(f"All models: {models}")
+    providers = [
+        LLMProvider.HUGGING_FACE,
+        LLMProvider.BEDROCK
+    ]
+    models = [
+        hf_models.split(',') if hf_models else [],
+        bedrock_models.split(',') if bedrock_models else []
+    ]
+    
+    return [
+        (
+           create_vector_db_adapter(
+                provider,
+                model_id
+            ),
+            model_id 
+        )
+        for provider, models_for_provider in zip(providers, models)
+        for model_id in models_for_provider    
+    ]
 
-    adapters = []
-    model_ids = []
-    for provider in models:
-        for model_id in models[provider]:
-            if provider == LLMProvider.HUGGING_FACE.value:
-                embed_model = HuggingFaceEmbedding(model_name=model_id)
-            elif provider == LLMProvider.BEDROCK.value:
-                embed_model = BedrockEmbedding(model=model_id)
 
-            vector_db_path = get_path_for_model_id(model_id)
-            click.echo(f"[{model_id}] Vector db path: {vector_db_path}")
-            vector_db_path.mkdir(parents=True, exist_ok=True)
-
-            adapters.append(ChromaDbVectorDbAdapter(
-                path=str(vector_db_path),
-                embed_model=embed_model
-            ))
-            model_ids.append(model_id)
-
-    return zip(adapters, model_ids)
+def _get_sql_generation_adapter_for_each_model(
+    hf_models: str, 
+    bedrock_models: str
+) -> List[Tuple[SqlQueryGenerationAdapter, str]]:
+    providers = [
+        LLMProvider.HUGGING_FACE,
+        LLMProvider.BEDROCK
+    ]
+    models = [
+        hf_models.split(',') if hf_models else [],
+        bedrock_models.split(',') if bedrock_models else []
+    ]
+    
+    return [
+        (
+           create_sql_generation_adapter(
+                provider,
+                model_id
+            ),
+            model_id 
+        )
+        for provider, models_for_provider in zip(providers, models)
+        for model_id in models_for_provider    
+    ]
 
 
 @cli.command()
@@ -239,6 +258,53 @@ def find_related_items_for_multiple_embedding_models(
     
     with open(output_path, 'w') as out:
         out.write(json.dumps(result, indent=2))
+
+
+@cli.command()
+@click.argument("sample_queries_path")
+@click.argument("output_path", default='output/generated_sqls.csv')
+@click.option('--hf-embed-models')
+@click.option('--bedrock-embed-models')
+@click.option('--hf-llms')
+@click.option('--bedrock-llms')
+def generate_sql_for_multiple_models(
+    sample_queries_path: str,
+    output_path: str,
+    hf_embed_models: str, 
+    bedrock_embed_models: str,
+    hf_llms: str,
+    bedrock_llms: str,
+):
+    """Generate SQL for each model for comparison"""
+
+    click.echo("Loading sample queries")
+    sample_queries = load_sample_queries(Path(sample_queries_path))
+
+    vector_dbs = _get_vector_db_for_each_model(hf_embed_models, bedrock_embed_models)
+    llms = _get_sql_generation_adapter_for_each_model(hf_llms, bedrock_llms)
+
+    result = []
+    for vector_db, embed_model_id in vector_dbs:
+        for query in sample_queries:
+            click.echo(f"[{embed_model_id}] Retreiving related tables from Vector DB")
+            related_tables = vector_db.find_related_tables(query.description)
+            click.echo(f"[{embed_model_id}] Retreiving related columns from Vector DB")
+            related_columns = vector_db.find_related_columns(query.description)
+            click.echo(f"[{embed_model_id}] Retreiving similar queries from Vector DB")
+            similar_queries = vector_db.find_similar_queries(query.description)
+            click.echo(f"[{embed_model_id}] Generating prompt to LLM")
+            llm_prompt = generate_query_prompt(query.description, related_tables, related_columns, similar_queries)
+            for llm, llm_model_id in llms:
+                click.echo(f"[{embed_model_id}][{llm_model_id}] Generating SQL query for prompt [{query.description}]")
+                result.append({
+                    "embed_model_id": embed_model_id,
+                    "llm_model_id": llm_model_id,
+                    "query.description": query.description,
+                    "query.sql": query.sql,
+                    "generated_sql": llm.generate_sql_query(llm_prompt)
+                })
+
+    pd.DataFrame(result).to_csv(output_path)
 
 
 if __name__ == '__main__':

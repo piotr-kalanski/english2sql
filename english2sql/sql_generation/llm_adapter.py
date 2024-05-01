@@ -48,29 +48,36 @@ class LlamaIndexAdapter(SqlQueryGenerationAdapter):
         return self._llm.stream_complete(prompt[-self._max_context:])
 
 
-def create_sql_generation_adapter_from_env() -> SqlQueryGenerationAdapter:
-    provider = llm_provider_from_env()
+def create_sql_generation_adapter(
+    provider: LLMProvider,
+    model_id: str,
+) -> LlamaIndexAdapter:
     if provider == LLMProvider.HUGGING_FACE:
-        model_id = os.environ.get('SQL_GENERATION_MODEL_ID', 'rakeshkiriyath/gpt2Medium_text_to_sql')
         llm = HuggingFaceLLM(
             model_name=model_id,
             tokenizer_name=model_id,
             device_map="auto",
         )
-        max_context = 256
+        max_context = llm.context_window // 2
     elif provider == LLMProvider.BEDROCK:
-        model_id = os.environ.get('SQL_GENERATION_MODEL_ID', 'amazon.titan-text-express-v1')
-        # anthropic.claude-3-opus-20240229-v1:0
-        # anthropic.claude-3-haiku-20240307-v1:0
-        # anthropic.claude-3-sonnet-20240229-v1:0
-        # anthropic.claude-instant-v1
-        # https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html
         llm = Bedrock(
             model=model_id
         )
-        max_context = llm.context_size
+        max_context = llm.context_size // 2
 
     return LlamaIndexAdapter(
         llm=llm,
         max_context=max_context,
+    )
+
+
+def create_sql_generation_adapter_from_env() -> SqlQueryGenerationAdapter:
+    provider = llm_provider_from_env()
+    if provider == LLMProvider.HUGGING_FACE:
+        model_id = os.environ.get('SQL_GENERATION_MODEL_ID', 'rakeshkiriyath/gpt2Medium_text_to_sql')
+    elif provider == LLMProvider.BEDROCK:
+        model_id = os.environ.get('SQL_GENERATION_MODEL_ID', 'amazon.titan-text-express-v1')
+    return create_sql_generation_adapter(
+        provider,
+        model_id
     )
