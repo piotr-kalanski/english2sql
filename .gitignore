@@ -3,6 +3,7 @@ jaffle-shop-main/
 jaffle_shop_duckdb-duckdb/
 chroma_db/
 chroma_db_old/
+chroma_multiple_collections_db/
 .zip
 __pycache__/
 backup/

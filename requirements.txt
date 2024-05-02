@@ -8,3 +8,6 @@ llama-index
 chromadb
 pydantic
 streamlit
+# for langchain:
+langchain
+langchain-chroma
