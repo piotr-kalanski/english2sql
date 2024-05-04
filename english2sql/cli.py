@@ -11,7 +11,7 @@ from english2sql.metadata.dbt_docs import load_dbt_metadata
 from english2sql.metadata.queries import load_sample_queries
 from english2sql.sql_generation.prompt_engineering import generate_query_prompt
 from english2sql.sql_generation.llm_adapter import SqlQueryGenerationAdapter, create_sql_generation_adapter_from_env, create_sql_generation_adapter
-from english2sql.vector_db.vector_db_adapter import create_vector_db_adapter_from_env, ChromaDbVectorDbAdapter, create_vector_db_adapter
+from english2sql.vector_db.vector_db_adapter import VectorDbAdapter, create_vector_db_adapter_from_env, create_vector_db_adapter
 
 
 @click.group()
@@ -141,8 +141,9 @@ def bedrock_llms():
 
 def _get_vector_db_for_each_model(
     hf_models: str, 
-    bedrock_models: str
-) -> List[Tuple[ChromaDbVectorDbAdapter, str]]:
+    bedrock_models: str,
+    aws_profile_name: str,
+) -> List[Tuple[VectorDbAdapter, str]]:
     providers = [
         LLMProvider.HUGGING_FACE,
         LLMProvider.BEDROCK
@@ -156,7 +157,8 @@ def _get_vector_db_for_each_model(
         (
            create_vector_db_adapter(
                 provider,
-                model_id
+                model_id,
+                aws_profile_name,
             ),
             model_id 
         )
@@ -167,7 +169,8 @@ def _get_vector_db_for_each_model(
 
 def _get_sql_generation_adapter_for_each_model(
     hf_models: str, 
-    bedrock_models: str
+    bedrock_models: str,
+    aws_profile_name: str,
 ) -> List[Tuple[SqlQueryGenerationAdapter, str]]:
     providers = [
         LLMProvider.HUGGING_FACE,
@@ -182,7 +185,8 @@ def _get_sql_generation_adapter_for_each_model(
         (
            create_sql_generation_adapter(
                 provider,
-                model_id
+                model_id,
+                aws_profile_name
             ),
             model_id 
         )
@@ -197,12 +201,14 @@ def _get_sql_generation_adapter_for_each_model(
 @click.option('--hf-models') # BAAI/bge-small-en-v1.5,BAAI/bge-base-en-v1.5,BAAI/bge-large-en-v1.5
 @click.option('--bedrock-models')
 @click.option('--accepted-db-schemas', default='core')
+@click.option('--aws-profile', default='default')
 def ingest_metadata_with_multiple_embedding_models(
     dbt_metadata_dir: str,
     sample_queries_path: str,
     hf_models: str, 
     bedrock_models: str,
-    accepted_db_schemas: str
+    accepted_db_schemas: str,
+    aws_profile: str,
 ):
     """Ingest metadata with multiple embedding models for comparison"""
 
@@ -213,7 +219,7 @@ def ingest_metadata_with_multiple_embedding_models(
     click.echo("Loading sample queries")
     sample_queries = load_sample_queries(Path(sample_queries_path))
 
-    for vector_db, model_id in _get_vector_db_for_each_model(hf_models, bedrock_models):
+    for vector_db, model_id in _get_vector_db_for_each_model(hf_models, bedrock_models, aws_profile):
         click.echo(f"[{model_id}] Ingesting table metadata")
         vector_db.save_tables_metadata(db)
 
@@ -229,11 +235,13 @@ def ingest_metadata_with_multiple_embedding_models(
 @click.argument("output_path", default='output/related_items.json')
 @click.option('--hf-models')
 @click.option('--bedrock-models')
+@click.option('--aws-profile', default='default')
 def find_related_items_for_multiple_embedding_models(
     sample_queries_path: str,
     output_path: str,
     hf_models: str, 
-    bedrock_models: str
+    bedrock_models: str,
+    aws_profile: str,
 ):
     """Find related items for each query and embedding model for comparison"""
 
@@ -241,7 +249,7 @@ def find_related_items_for_multiple_embedding_models(
     sample_queries = load_sample_queries(Path(sample_queries_path))
 
     result = {}
-    for vector_db, model_id in _get_vector_db_for_each_model(hf_models, bedrock_models):
+    for vector_db, model_id in _get_vector_db_for_each_model(hf_models, bedrock_models, aws_profile):
         result[model_id] = {}
         for query_obj in sample_queries:
             query = query_obj.description
@@ -272,6 +280,7 @@ def find_related_items_for_multiple_embedding_models(
 @click.option('--bedrock-embed-models')
 @click.option('--hf-llms')
 @click.option('--bedrock-llms')
+@click.option('--aws-profile', default='default')
 def generate_sql_for_multiple_models(
     sample_queries_path: str,
     output_path: str,
@@ -279,14 +288,15 @@ def generate_sql_for_multiple_models(
     bedrock_embed_models: str,
     hf_llms: str,
     bedrock_llms: str,
+    aws_profile: str,
 ):
     """Generate SQL for each model for comparison"""
 
     click.echo("Loading sample queries")
     sample_queries = load_sample_queries(Path(sample_queries_path))
 
-    vector_dbs = _get_vector_db_for_each_model(hf_embed_models, bedrock_embed_models)
-    llms = _get_sql_generation_adapter_for_each_model(hf_llms, bedrock_llms)
+    vector_dbs = _get_vector_db_for_each_model(hf_embed_models, bedrock_embed_models, aws_profile)
+    llms = _get_sql_generation_adapter_for_each_model(hf_llms, bedrock_llms, aws_profile)
 
     result = []
     for vector_db, embed_model_id in vector_dbs:

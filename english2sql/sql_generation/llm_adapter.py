@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import os
-from typing import Generator
+from typing import Generator, Optional
 
 from transformers import pipeline
 from llama_index.core.llms import LLM
@@ -25,7 +25,7 @@ class HuggingFacePipelineAdapter(SqlQueryGenerationAdapter):
         self._pipe = pipeline("text-generation", model=model_id)
     
     def generate_sql_query(self, prompt: str) -> str:
-        return self._pipe(prompt[-256:])[0]['generated_text']
+        return self._pipe(prompt[-256:])[0]['generated_text'] # type: ignore
 
     def stream_generate_sql_query(self, prompt: str) -> Generator:
         ...
@@ -51,6 +51,7 @@ class LlamaIndexAdapter(SqlQueryGenerationAdapter):
 def create_sql_generation_adapter(
     provider: LLMProvider,
     model_id: str,
+    aws_profile_name: Optional[str]=None,
 ) -> LlamaIndexAdapter:
     if provider == LLMProvider.HUGGING_FACE:
         llm = HuggingFaceLLM(
@@ -61,7 +62,8 @@ def create_sql_generation_adapter(
         max_context = llm.context_window // 2
     elif provider == LLMProvider.BEDROCK:
         llm = Bedrock(
-            model=model_id
+            model=model_id,
+            profile_name=aws_profile_name,
         )
         max_context = llm.context_size // 2
 
@@ -79,5 +81,6 @@ def create_sql_generation_adapter_from_env() -> SqlQueryGenerationAdapter:
         model_id = os.environ.get('SQL_GENERATION_MODEL_ID', 'amazon.titan-text-express-v1')
     return create_sql_generation_adapter(
         provider,
-        model_id
+        model_id,
+        aws_profile_name=os.environ.get('AWS_PROFILE', None),
     )

@@ -1,12 +1,12 @@
 from abc import ABC, abstractmethod
 import os
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from llama_index.core import Document, VectorStoreIndex
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.core import StorageContext
-from llama_index.core.retrievers import VectorIndexRetriever
+from llama_index.core.retrievers import BaseRetriever
 from llama_index.core.postprocessor import SimilarityPostprocessor
 from llama_index.core.embeddings import BaseEmbedding
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
@@ -49,7 +49,7 @@ class ChromaDbVectorDbAdapter(VectorDbAdapter):
 
     def __init__(
         self,
-        path: Path,
+        path: str,
         embed_model: BaseEmbedding,
     ):
         self._embed_model = embed_model
@@ -134,7 +134,7 @@ class ChromaDbVectorDbAdapter(VectorDbAdapter):
         documents = [
             Document(
                 text=text_mapper(item),
-                metadata=metadata_mapper(item),
+                metadata=metadata_mapper(item), # type: ignore
             )
             for item in items
         ]
@@ -170,7 +170,7 @@ class ChromaDbVectorDbAdapter(VectorDbAdapter):
     def _find_similar_items(
         self,
         query: str,
-        retriever: VectorIndexRetriever,
+        retriever: BaseRetriever,
         similarity_cutoff: float,
         node_metadata_mapper
     ):
@@ -190,12 +190,14 @@ def get_path_for_model_id(model_id: str) -> Path:
 def create_vector_db_adapter(
     provider: LLMProvider,
     model_id: str,
+    aws_profile_name: Optional[str]=None,
 ) -> VectorDbAdapter:
     if provider == LLMProvider.HUGGING_FACE:
         embed_model = HuggingFaceEmbedding(model_name=model_id)
     elif provider == LLMProvider.BEDROCK:
         embed_model = BedrockEmbedding(
-            model=model_id
+            model=model_id,
+            profile_name=aws_profile_name,
         )
 
     vector_db_path = get_path_for_model_id(model_id)
@@ -214,4 +216,8 @@ def create_vector_db_adapter_from_env() -> VectorDbAdapter:
     elif provider == LLMProvider.BEDROCK:
         model_id = os.environ.get('EMBEDDING_MODEL_ID', 'amazon.titan-embed-text-v1')
 
-    return create_vector_db_adapter(provider, model_id)
+    return create_vector_db_adapter(
+        provider,
+        model_id,
+        aws_profile_name=os.environ.get('AWS_PROFILE', None),
+    )
