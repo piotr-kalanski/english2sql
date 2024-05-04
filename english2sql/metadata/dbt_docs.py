@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import List
 
 from english2sql.metadata.model import (
     ColumnMetadata,
@@ -8,7 +9,7 @@ from english2sql.metadata.model import (
 )
 
 
-def load_dbt_metadata(dir: Path) -> DatabaseMetadata:
+def load_dbt_metadata(dir: Path, accepted_schemas: List[str]) -> DatabaseMetadata:
     catalog_json_file_path = dir / "catalog.json"
     manifest_json_file_path = dir / "manifest.json"
 
@@ -46,19 +47,20 @@ def load_dbt_metadata(dir: Path) -> DatabaseMetadata:
                     ColumnMetadata(
                         name=column_name,
                         description=column_metadata['description'],
-                        type=dbt_catalog['nodes'][model_name]['columns'].get(column_name, {}).get('type'),
+                        type=dbt_catalog['nodes'].get(model_name, {}).get('columns', {}).get(column_name, {}).get('type'),
                         accepted_values=all_accepted_values_tests.get(model_name, {}).get(column_name, []),
                     )
                 )
 
-            tables_metadata.append(
-                TableMetadata(
-                    database=node['database'],
-                    schema=node['schema'],
-                    table=node['name'],
-                    description=node['description'],
-                    columns=columns_metadata,
+            if node['schema'] in accepted_schemas:
+                tables_metadata.append(
+                    TableMetadata(
+                        database=node['database'],
+                        schema=node['schema'],
+                        table=node['name'],
+                        description=node['description'],
+                        columns=columns_metadata,
+                    )
                 )
-            )
 
     return DatabaseMetadata(tables_metadata)

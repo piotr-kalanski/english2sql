@@ -21,11 +21,13 @@ def cli():
 
 @cli.command()
 @click.argument("dbt_metadata_dir")
-def ingest_dbt_metadata(dbt_metadata_dir: str):
+@click.option('--accepted-db-schemas', default='core')
+def ingest_dbt_metadata(dbt_metadata_dir: str, accepted_db_schemas: str):
     """Ingest dbt metadata - manifest.json and catalog.json"""
 
     click.echo("Loading dbt metadata")
-    db = load_dbt_metadata(Path(dbt_metadata_dir))
+    db = load_dbt_metadata(Path(dbt_metadata_dir), accepted_db_schemas.split(','))
+    click.echo(f"Total tables: {len(db.tables)}")
 
     vector_db = create_vector_db_adapter_from_env()
     click.echo("Ingesting table metadata")
@@ -194,16 +196,19 @@ def _get_sql_generation_adapter_for_each_model(
 @click.argument("sample_queries_path")
 @click.option('--hf-models') # BAAI/bge-small-en-v1.5,BAAI/bge-base-en-v1.5,BAAI/bge-large-en-v1.5
 @click.option('--bedrock-models')
+@click.option('--accepted-db-schemas', default='core')
 def ingest_metadata_with_multiple_embedding_models(
     dbt_metadata_dir: str,
     sample_queries_path: str,
     hf_models: str, 
-    bedrock_models: str
+    bedrock_models: str,
+    accepted_db_schemas: str
 ):
     """Ingest metadata with multiple embedding models for comparison"""
 
     click.echo("Loading dbt metadata")
-    db = load_dbt_metadata(Path(dbt_metadata_dir))
+    db = load_dbt_metadata(Path(dbt_metadata_dir), accepted_db_schemas.split(','))
+    click.echo(f"Total tables: {len(db.tables)}")
 
     click.echo("Loading sample queries")
     sample_queries = load_sample_queries(Path(sample_queries_path))

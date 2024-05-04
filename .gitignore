@@ -8,3 +8,4 @@ chroma_multiple_collections_db/
 __pycache__/
 backup/
 output/
+data/
